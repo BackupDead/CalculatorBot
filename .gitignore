@@ -1,0 +1,4 @@
+.idea/
+out/
+*.bat
+src/com/rmpi/telegram/calculator/lib/

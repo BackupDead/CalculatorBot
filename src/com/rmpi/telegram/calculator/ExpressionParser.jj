@@ -1,0 +1,89 @@
+options {
+    STATIC = false;
+}
+
+PARSER_BEGIN(ExpressionParser)
+
+package com.rmpi.telegram.calculator;
+
+import java.math.BigDecimal;
+
+public class ExpressionParser {
+
+}
+
+PARSER_END(ExpressionParser)
+
+SKIP: { " " | "\n" | "\t" }
+TOKEN: { <NUMBER : (["0"-"9"])+ ("." (["0"-"9"])+)?> }
+
+BigDecimal expr() : {
+    BigDecimal operandOne;
+    BigDecimal operandTwo;
+} {
+    operandOne=unaryMerge() (
+        operandTwo=exprTerm() { operandOne = operandOne.add(operandTwo); }
+    )* { return operandOne; }
+}
+
+BigDecimal exprTerm() : {
+    BigDecimal operand;
+} {
+    "+" operand=unaryMerge() { return operand; }
+    | "-" operand=unaryMerge() { return operand.negate(); }
+}
+
+BigDecimal unaryMerge() : {
+    BigDecimal operandOne;
+    BigDecimal operandTwo;
+} {
+    operandOne=unaryMerged() (
+        operandTwo=unaryTerm() { operandOne = operandOne.multiply(operandTwo); }
+    )* { return operandOne; }
+}
+
+BigDecimal unaryTerm() : {
+    BigDecimal operand;
+} {
+    "*" operand=unaryMerged() { return operand; }
+    | "/" operand=unaryMerged() { return BigDecimal.ONE.divide(operand); }
+}
+
+BigDecimal unaryMerged() : {
+    BigDecimal operandOne;
+    BigDecimal operandTwo;
+} {
+    "+" operandOne=unaryMerged() { return operandOne; }
+    | "-" operandOne=unaryMerged() { return operandOne.negate(); }
+    | LOOKAHEAD(2)
+    operandOne=unaryRedundantMul() "^" operandTwo=unaryMerged() {
+        if (operandTwo.toPlainString().contains("."))
+            throw new ArithmeticException("THIS PARSER DOES NOT IMPLEMENT NON-INTEGER POWING");
+        int sign = operandTwo.signum();
+        if (sign == 0) return BigDecimal.ONE;
+        else if (sign < 0) operandTwo = operandTwo.negate();
+        BigDecimal result = operandOne;
+        while (!BigDecimal.ZERO.equals(operandTwo = operandTwo.subtract(BigDecimal.ONE)))
+            result = result.multiply(operandOne);
+        assert sign != 0;
+        return sign > 0 ? result : BigDecimal.ONE.divide(result);
+    }
+    | operandOne=unaryRedundantMul() { return operandOne; }
+}
+
+BigDecimal unaryRedundantMul() : {
+    BigDecimal operandOne;
+    BigDecimal operandTwo;
+} {
+    operandOne=unaryObject() (
+        operandTwo=unaryObject() { operandOne = operandOne.multiply(operandTwo); }
+    )* { return operandOne; }
+}
+
+BigDecimal unaryObject() : {
+    Token rawToken;
+    BigDecimal operand;
+} {
+    rawToken=<NUMBER> { return new BigDecimal(rawToken.toString()); }
+    | "(" operand=expr() ")" { return operand; }
+}
